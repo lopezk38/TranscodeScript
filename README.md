@@ -10,12 +10,16 @@ Dependencies:
 Notes:
 
 Each input folder has a predefined time zone attached to them. Clips are assigned a source timezone based upon which folder they are in  
+  
 The script expects the exact date stamps Shadowplay writes in each clips filename when they are created. Everything else in the filename can be changed.  
+  
 It currently expects .mp4 input files. It currently outputs DNXHD 1080p 59.94 FPS .mov files.  
+  
 Giving an input file the name 0 will force it retain the name 0. There can only be one, and it only works for 0, not for any number.  
+  
 	
 	
-Basic description of how it works:
+Basic description of how it works:  
 The script loops through a set of predefined folders. Each of those folders has a pre programmed timezone. It looks in each of these folders, uses regex
 to parse the timestamp in the file name, from year all the way down to second, and stores it. It will then modifiy the stored time based upon what
 timezone folder the clip came from - it converts everything to Pacific time. It then attempts to rename the clip to a new date stamp format, losing all
