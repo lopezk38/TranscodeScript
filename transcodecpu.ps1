@@ -18,11 +18,11 @@ $transcodeDir = "C:\Users\Kenneth Lopez\transcode"
 
 for($region=0; $region -lt 5; $region++) {
     Switch ($region) {
-        0 {$directory = "D:\Videos\Clip Submissions\Arizona"} #Arizona
-        1 {$directory = "D:\Videos\Clip Submissions\Atlantic"} #Atlantic
-        2 {$directory = "D:\Videos\Clip Submissions\Central"} #Central
-        3 {$directory = "D:\Videos\Clip Submissions\Mountain"} #Mountain
-        4 {$directory = "D:\Videos\Clip Submissions\Pacific"} #Pacific
+        0 {$directory = "E:\Videos\Clip Submissions\Arizona"} #Arizona
+        1 {$directory = "E:\Videos\Clip Submissions\Atlantic"} #Atlantic
+        2 {$directory = "E:\Videos\Clip Submissions\Central"} #Central
+        3 {$directory = "E:\Videos\Clip Submissions\Mountain"} #Mountain
+        4 {$directory = "E:\Videos\Clip Submissions\Pacific"} #Pacific
     }
     Get-ChildItem $directory -Filter *.mp4 | ForEach-Object {
         $clipCounter++
@@ -118,7 +118,7 @@ sleep -s 5
 $clipCounter = 1
 Get-ChildItem $transcodeDir -Filter *.mp4 | Sort-Object |
 ForEach-Object {
-ffmpeg -hwaccel dxva2 -i $_.FullName -c:v dnxhd -vf "scale=1920:1080,fps=60000/1001,format=yuv422p" -b:v 440M -c:a pcm_s16le ("G:\Scratch Folder\" + $_.baseName + '.mov')
+ffmpeg -hwaccel dxva2 -i $_.FullName -c:v dnxhd -vf "scale=2560:1440,fps=60000/1001,format=yuv422p" -profile:v dnxhr_sq -c:a pcm_s16le ("G:\Scratch Folder\" + $_.baseName + '.mov')
 If ($_.BaseName -eq '0') {
     Rename-Item -Path ("G:\Scratch Folder\" + $_.BaseName + '.mov') -NewName ('0' + '.mp4')
     } Else {
