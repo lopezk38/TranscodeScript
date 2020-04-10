@@ -1,3 +1,11 @@
+$clipCounter = 0
+$renameCounter = 0
+$directory = ""
+$failedClips = @() #spawns empty array
+$transcodeDir = "F:\transcode"
+$scratchFolder = "I:\Scratch Folder"
+$ffmpegInstances = 4
+
 function beepError {
     for ($i = 0; $i -lt 3; $i++) {
         [console]::beep(200,100)
@@ -10,19 +18,13 @@ function beepSuccess {
     }
 }
 
-$clipCounter = 0
-$renameCounter = 0
-$directory = ""
-$failedClips = @() #spawns empty array
-$transcodeDir = "C:\Users\Kenneth Lopez\transcode"
-
-for($region=0; $region -lt 5; $region++) {
+for($region = 0; $region -lt 5; $region++) {
     Switch ($region) {
-        0 {$directory = "E:\Videos\Clip Submissions\Arizona"} #Arizona
-        1 {$directory = "E:\Videos\Clip Submissions\Atlantic"} #Atlantic
-        2 {$directory = "E:\Videos\Clip Submissions\Central"} #Central
-        3 {$directory = "E:\Videos\Clip Submissions\Mountain"} #Mountain
-        4 {$directory = "E:\Videos\Clip Submissions\Pacific"} #Pacific
+        0 {$directory = "D:\Videos\Clip Submissions\Arizona"} #Arizona
+        1 {$directory = "D:\Videos\Clip Submissions\Atlantic"} #Atlantic
+        2 {$directory = "D:\Videos\Clip Submissions\Central"} #Central
+        3 {$directory = "D:\Videos\Clip Submissions\Mountain"} #Mountain
+        4 {$directory = "D:\Videos\Clip Submissions\Pacific"} #Pacific
     }
     Get-ChildItem $directory -Filter *.mp4 | ForEach-Object {
         $clipCounter++
@@ -107,7 +109,7 @@ for($region=0; $region -lt 5; $region++) {
 
 
 echo ('Succeeded renaming ' + $renameCounter.ToString() + ' out of ' + $clipCounter.ToString() + ' clips')
-if ($failedClips.Count -gt 0) {
+If ($failedClips.Count -gt 0) {
     echo "Printing names of failed clips:"
     $failedClips
     sleep -s 10
@@ -115,16 +117,88 @@ if ($failedClips.Count -gt 0) {
 
 sleep -s 5
 
-$clipCounter = 1
-Get-ChildItem $transcodeDir -Filter *.mp4 | Sort-Object |
-ForEach-Object {
-ffmpeg -hwaccel dxva2 -i $_.FullName -c:v dnxhd -vf "scale=2560:1440,fps=60000/1001,format=yuv422p" -profile:v dnxhr_sq -c:a pcm_s16le ("G:\Scratch Folder\" + $_.baseName + '.mov')
-If ($_.BaseName -eq '0') {
-    Rename-Item -Path ("G:\Scratch Folder\" + $_.BaseName + '.mov') -NewName ('0' + '.mp4')
-    } Else {
-    Rename-Item -Path ("G:\Scratch Folder\" + $_.BaseName + '.mov') -NewName ($clipCounter.ToString() + '.mp4')
-    $clipCounter++
-    }
+echo "Beginning Transcodes..."
+$timer = New-Object -TypeName System.Diagnostics.Stopwatch
+$timer.Start()
+
+for ($instances = 0; $instances -lt $ffmpegInstances; $instances++) {
+	$aList = $instances, $ffmpegInstances, $transcodeDir, $scratchFolder
+	Start-Job -ArgumentList $aList -ScriptBlock { 
+		param($instances, $ffmpegInstances, $transcodeDir, $scratchFolder)
+		$files = Get-ChildItem $transcodeDir -Filter *.mp4
+		for ($i = $instances; $i -lt $files.Count; $i = $i + $ffmpegInstances) {
+			ffmpeg -nostdin -hwaccel dxva2 -i $files[$i].FullName -c:v dnxhd -vf "scale=2560:1440,fps=60000/1001,format=yuv422p" -profile:v dnxhr_sq -c:a pcm_s16le ($scratchFolder + "\" + $files[$i].BaseName + '.mov')
+		}
+	} 
 }
 
+Get-Job | Wait-Job
+$timer.Stop()
+echo "Milliseconds to encode: "
+echo $timer.ElapsedMilliseconds
+
+$clipCounter = 1
+Get-ChildItem $scratchFolder -Filter *.mov | Sort-Object |
+ForEach-Object {
+	If ($_.BaseName -eq '0') {
+		Rename-Item -Path ($scratchFolder + "\" + $_.BaseName + '.mov') -NewName ('0' + '.mp4')
+	} Else {
+		Rename-Item -Path ($scratchFolder + "\" + $_.BaseName + '.mov') -NewName ($clipCounter.ToString() + '.mp4')
+		$clipCounter++
+	}
+}
+
+
+
 beepSuccess
+
+echo ""
+echo "Press Enter to Exit..."
+Read-Host
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
