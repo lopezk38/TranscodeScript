@@ -28,97 +28,119 @@ for($region = 0; $region -lt 5; $region++) {
     }
     Get-ChildItem $directory -Filter *.mp4 | ForEach-Object {
         $clipCounter++
-        If ($_.BaseName -ne '0') {
+        If ($_.BaseName -ne '0') { #Check for magic file name of 0 that forces script to make it the first clip chronologically
             $year=$month=$day=$hour=$minute=$second = -1
             $dupecount = 0
 
-            If ($_.BaseName -match '\d\d\d\d\.\d\d\.\d\d\.\d\d\.\d\d\.\d\d\.\d\d') {
+            If ($_.BaseName -match '\d\d\d\d\.\d\d\.\d\d\.\d\d\.\d\d\.\d\d\.\d\d') { #Check if we're looking at a file that was already processed in a previous instance of this program and skip it
                 echo ($_.BaseName + " is already in the correct format.")
-                if (Test-Path -Path ($transcodeDir + '\' + $_.BaseName + '.mp4')) {
+                if (Test-Path -Path ($transcodeDir + '\' + $_.BaseName + '.mp4')) { #See if this file was only partially processed last time and finish the copy if so
                     echo "...has already been copied. Skipping copy..."
                 } else {
                     echo "Copying..."
                     Copy-Item $_.FullName -Destination $transcodeDir 
                     $renameCounter++
                 }
-            } else {
+            } else { #Looking at a file thats never been processed then, put in the work
 
-                If ($_.BaseName -match '\d\d\d\d\.\d\d\.\d\d') {
+                $foundCoarseFormat = 0
+                If ($_.BaseName -match '\d\d\d\d\.\d\d\.\d\d') { #Check for Shadowplay/Relive File Format
                     $year = $Matches[0].substring(0,4)
                     $month = $Matches[0].substring(5,2)
                     $day = $Matches[0].substring(8,2)
-                    If ($_.BaseName -match '((?<=-)|(?<=- ))(\d\d\.\d\d)') {
-                        $foundFormat = 0 
-                        $hour = ""
-                        $minute = ""
-                        $second = ""
+                    $foundCoarseFormat = 1 #1 for found Shadowplay/Relive
+                }
 
+                If ($_.BaseName -match '\d\d\d\d\-\d\d\-\d\d\ \d\d\-\d\d\-\d\d') { #Check for Xbox Game Bar DVR File Format
+                    $year = $Matches[0].substring(0,4)
+                    $month = $Matches[0].substring(5,2)
+                    $day = $Matches[0].substring(8,2)
+                    $foundCoarseFormat = 2 #2 for found Xbox Game Bar DVR
+                }
+
+                If ($foundCoarseFormat -gt 0) { #0 is failure, continue down the tree if it succeeded
+                    $foundFineFormat = 0 
+                    $hour = ""
+                    $minute = ""
+                    $second = ""
+
+                    If (($foundCoarseFormat -eq 1) -and ($_.BaseName -match '((?<=-)|(?<=- ))(\d\d\.\d\d)')) { #Filter out certain false matches for Shadowplay/Relive
                         If ($_.BaseName -match '(\d\d\.\d\d\.\d\d\.\d\d)(?!\.\d)') { #Check for Shadowplay File Name Format. Number after seconds is a client side counter. Not useful for me 
                             $hour = $Matches[0].substring(0,2)
                             $minute = $Matches[0].substring(3,2)
                             $second = $Matches[0].substring(6,2)
-                            $foundFormat = 1
+                            $foundFineFormat = 1
                         } Elseif ($_.BaseName -match '(?<=-)(\d\d\.\d\d)(?!\.\d)') { #Check for ReLive File Name Format. Has less data than Shadowplay, set extra data to 00
                             $hour = $Matches[0].substring(0,2)
                             $minute = $Matches[0].substring(3,2)
                             $second = "00"
-                            $foundFormat = 1
-                        } Else {echo ('Could not find fine date (Format Determination) for: ' + $_.BaseName); $failedClips += $_.BaseName; beepError; sleep -s 10;}
+                            $foundFineFormat = 1
+                        }
+                    }
 
-                        If ($foundFormat -eq 1) {
-                            $DateObject = Get-Date -Year $year -Month $month -Day $day -Hour $hour -Minute $minute -Second $second
-                            $DateObject = [System.DateTime]::SpecifyKind($DateObject, 0)
+                    If ($foundCoarseFormat -eq 2) {
+                        If ($_.BaseName -match '(?<= )(\d\d\-\d\d\-\d\d)(?!\.\d)') { #Check for Xbox Game Bar DVR File Name Format
+                            $hour = $Matches[0].substring(0,2)
+                            $minute = $Matches[0].substring(3,2)
+                            $second = $Matches[0].substring(6,2)
+                            $foundFineFormat = 1
+                        }
+                    }
 
-                            Switch ($region) { #Timezone offset. Normalize to pacific
-                                0 { if (!((Get-Date).IsDaylightSavingTime())) { # TimeZoneInfo is not aware of Arizona's lack of DST, so we just leave the time alone when it's DST
-                                        $DateObject = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($DateObject, 'Mountain Standard Time', 'Pacific Standard Time')
+                    If ($foundFineFormat -eq 1) {
+                        $DateObject = Get-Date -Year $year -Month $month -Day $day -Hour $hour -Minute $minute -Second $second
+                        $DateObject = [System.DateTime]::SpecifyKind($DateObject, 0)
+                                
+                        Switch ($region) { #Timezone offset. Normalize to pacific
+                            0 { if (!((Get-Date).IsDaylightSavingTime())) { # TimeZoneInfo is not aware of Arizona's lack of DST, so we just leave the time alone when it's DST
+                                    $DateObject = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($DateObject, 'Mountain Standard Time', 'Pacific Standard Time')
                                     $year = $DateObject.Year; $month = $DateObject.Month; $day = $DateObject.Day; $hour = $DateObject.Hour; $minute = $DateObject.Minute; $second = $DateObject.Second
-                                  };}
-                                1 {
-                                    $DateObject = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($DateObject, 'Eastern Standard Time', 'Pacific Standard Time')
-                                    $year = $DateObject.Year; $month = $DateObject.Month; $day = $DateObject.Day; $hour = $DateObject.Hour; $minute = $DateObject.Minute; $second = $DateObject.Second
-                                  }
-                                2 {
-                                   $DateObject = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($DateObject, 'Central Standard Time', 'Pacific Standard Time')
-                                    $year = $DateObject.Year; $month = $DateObject.Month; $day = $DateObject.Day; $hour = $DateObject.Hour; $minute = $DateObject.Minute; $second = $DateObject.Second
-                                 }
-                              3 {
-                                  $DateObject = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($DateObject, 'Mountain Standard Time', 'Pacific Standard Time')
-                                  $year = $DateObject.Year; $month = $DateObject.Month; $day = $DateObject.Day; $hour = $DateObject.Hour; $minute = $DateObject.Minute; $second = $DateObject.Second
-                                 }
-                              4 { } #Don't need to do anything for Pacific
-                          }
+                                }
+                              }
+                            1 {
+                                $DateObject = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($DateObject, 'Eastern Standard Time', 'Pacific Standard Time')
+                                $year = $DateObject.Year; $month = $DateObject.Month; $day = $DateObject.Day; $hour = $DateObject.Hour; $minute = $DateObject.Minute; $second = $DateObject.Second
+                              }
+                            2 {
+                                $DateObject = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($DateObject, 'Central Standard Time', 'Pacific Standard Time')
+                                $year = $DateObject.Year; $month = $DateObject.Month; $day = $DateObject.Day; $hour = $DateObject.Hour; $minute = $DateObject.Minute; $second = $DateObject.Second
+                              }
+                            3 {
+                                $DateObject = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($DateObject, 'Mountain Standard Time', 'Pacific Standard Time')
+                                $year = $DateObject.Year; $month = $DateObject.Month; $day = $DateObject.Day; $hour = $DateObject.Hour; $minute = $DateObject.Minute; $second = $DateObject.Second
+                              }
+                            4 { } #Don't need to do anything for Pacific
+                        }
 
 
-                           #Find suitable name and rename
-                           #https://social.technet.microsoft.com/wiki/contents/articles/4250.powershell-string-formatting.aspx#NET_formatting
-                           #gist of it is that '{0:0000}' -f <string> means pad front of int with zeros until string length is >= 4
-                           # '{<keep 0 for most cases>:<number of digits (based off number of zeros you write) you want in the final product. Will pad zeros until met>}'
-                           $nameToTry = '{0:0000}' -f $year + '.' + '{0:00}' -f $month + '.' + '{0:00}' -f $day + '.' + '{0:00}' -f $hour + '.' + '{0:00}' -f $minute +'.' + '{0:00}' -f $second + '.' + '{0:00}' -f $dupecount + '.mp4'
-                           While (Test-Path -Path ($transcodeDir + '\' + $nameToTry)) {
-                               if ($dupecount -eq 10) {
-                                   echo ("Warning: " + $_.BaseName + " has over 10 duplicates")
-                               }
-                               
-                              if ($dupecount -gt 25) {
-                                  echo ($_.BaseName + " has too many duplicates. Skipping...")
-                                  $failedClips += $_.BaseName
-                                  beepError
-                                  pause
-                                  break
-                               }
+                        #Find suitable name and rename
+                        #https://social.technet.microsoft.com/wiki/contents/articles/4250.powershell-string-formatting.aspx#NET_formatting
+                        #gist of it is that '{0:0000}' -f <string> means pad front of int with zeros until string length is >= 4
+                        # '{<keep 0 for most cases>:<number of digits (based off number of zeros you write) you want in the final product. Will pad zeros until met>}'
+                        $nameToTry = '{0:0000}' -f $year + '.' + '{0:00}' -f $month + '.' + '{0:00}' -f $day + '.' + '{0:00}' -f $hour + '.' + '{0:00}' -f $minute +'.' + '{0:00}' -f $second + '.' + '{0:00}' -f $dupecount + '.mp4'
+                        While (Test-Path -Path ($transcodeDir + '\' + $nameToTry)) {
+                            if ($dupecount -eq 10) {
+                                echo ("Warning: " + $_.BaseName + " has over 10 duplicates")
+                            }
+                                   
+                            if ($dupecount -gt 25) {
+                                echo ($_.BaseName + " has too many duplicates. Skipping...")
+                                $failedClips += $_.BaseName
+                                beepError
+                                pause
+                                break
+                            }
 
-                               $dupecount++
-                               $nameToTry = '{0:0000}' -f $year + '.' + '{0:00}' -f $month + '.' + '{0:00}' -f $day + '.' + '{0:00}' -f $hour + '.' + '{0:00}' -f $minute +'.' + '{0:00}' -f $second + '.' + '{0:00}' -f $dupecount + '.mp4'
-                          }
-                          $_ | Rename-Item -NewName ($nameToTry)
-                          Copy-Item ($directory + '\' + $nameToTry) -Destination $transcodeDir
-                          $renameCounter++
-                      }
-                    } else {echo ('Could not find fine date (Pre Format Determination) for: ' + $_.BaseName); $failedClips += $_.BaseName; beepError; sleep -s 10}
+                            $dupecount++
+                            $nameToTry = '{0:0000}' -f $year + '.' + '{0:00}' -f $month + '.' + '{0:00}' -f $day + '.' + '{0:00}' -f $hour + '.' + '{0:00}' -f $minute +'.' + '{0:00}' -f $second + '.' + '{0:00}' -f $dupecount + '.mp4'
+                        }
+                        $_ | Rename-Item -NewName ($nameToTry)
+                        Copy-Item ($directory + '\' + $nameToTry) -Destination $transcodeDir
+                        $renameCounter++
+                    } else {echo ('Could not find fine date for: ' + $_.BaseName); $failedClips += $_.BaseName; beepError; sleep -s 10;}
                 } else {echo ('Could not find coarse date for: ' + $_.BaseName); $failedClips += $_.BaseName; beepError; sleep -s 10}
             } 
-        } else {Copy-Item $_.FullName -Destination $transcodeDir; $renameCounter++}
+        } else {Copy-Item $_.FullName -Destination $transcodeDir; $renameCounter++} #Copy file named 0 without changes to the name to make it the first file chronologically
     }
 }
 
